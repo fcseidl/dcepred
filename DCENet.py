@@ -6,7 +6,7 @@ from autograd import grad
 
 def _dcenet_fwd(params, dce, t):
     inputs = anp.hstack((dce, t))
-    for W, b in params:
+    for W, b in zip(params[0::2], params[1::2]):    # weights and biases alternate
         outputs = anp.dot(inputs, W) + b
         inputs = anp.tanh(outputs)
     return outputs
@@ -17,16 +17,23 @@ class DCENet:
     A neural network predictor which fits to time series data using delay-coordinate embedding.
     """
 
-    def __init__(self, seed=0):
-        """:param seed: Random seed to use for parameter initialization."""
-        self._params = self._horizon = None
+    def __init__(self, seed=0, loadfile=None):
+        """
+        :param seed: Random seed to use for parameter initialization.
+        :param loadfile: Name of a .npz archive with saved parameters.
+        """
+        self._params = None
+        if loadfile is not None:
+            npz = anp.load(loadfile)
+            self._params = [npz[file] for file in npz.files]
         self._rng = anp.random.RandomState(seed)
 
     def _init_params(self, layerdims):
-        return [(self._rng.randn(m, n), self._rng.randn(n))  # (weight, bias)
-                for m, n in zip(layerdims[:-1], layerdims[1:])]
-
-    # fit and predict methods in the style of sklearn
+        result = []
+        for m, n in zip(layerdims[:-1], layerdims[1:]):
+            result.append(self._rng.randn(m, n))    # weight
+            result.append(self._rng.randn(n))       # bias
+        return result
 
     def fit(self, series, dim, delay, horizon=1, hdims=[64, 64]):
         """
@@ -39,27 +46,27 @@ class DCENet:
         :param hdims: Optional, sequence of hidden layer dimensions. Default is [64, 64].
         :return: This DCENet instance, fitted to predict the data process.
         """
-        self._horizon = horizon
         init_params = self._init_params([dim + 1] + hdims + [1])
-        tmin = int(delay * (1 - dim - self._horizon))   # query interval bounds
-        tmax = int(delay * self._horizon)
+        tmin = int(delay * (1 - dim - horizon))   # query interval bounds
+        tmax = int(delay * horizon)
         smin = -tmin
         smax = series.shape[0] - tmax
 
+        # TODO: more efficient training procedure
         def objective(params, _):
             s = self._rng.randint(smin, smax)        # random query point and time
             dce = series[s - (dim - 1) * delay:s + 1:delay]
             t = self._rng.randint(tmin, tmax)
-            pred = _dcenet_fwd(params, dce, t)
+            pred = _dcenet_fwd(params, dce, t / delay)
             true = series[s + t]
             return (pred - true) ** 2
 
         def callback(params, iter, _):
-            if iter % 100 == 0:
+            if iter % 10000 == 0:
                 print("params at iter", iter)
                 print(params)
 
-        self._params = adam(grad(objective), init_params, callback=callback, num_iters=100000)
+        self._params = adam(grad(objective), init_params, callback=callback, num_iters=50000)
         return self
 
     def predict(self, dce, t):
@@ -70,6 +77,12 @@ class DCENet:
         """
         if self._params is None:
             raise AttributeError("predict() called before fit()")
-        if t > self._horizon or t < 1 - dce.shape[0] - self._horizon:
-            raise Warning("Prediction time horizon is outside of training interval.")
-        return _dcenet_fwd(self._params, dce, t)
+        return _dcenet_fwd(self._params, dce, t)[0]
+
+    def save_params(self, filename):
+        """
+        Save parameters to a file.
+        :param filename: .npz extension will be appended if not present
+        """
+        anp.savez(filename, *self._params)
+
