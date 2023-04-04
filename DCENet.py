@@ -27,6 +27,15 @@ class DCENet:
             npz = anp.load(loadfile)
             self._params = [npz[file] for file in npz.files]
         self._rng = anp.random.RandomState(seed)
+        self._mean = 0.0
+        self._std = 1.0
+
+    # train on centered data with unit variance
+    def _normalize(self, data):
+        return (data - self._mean) / self._std
+
+    def _unnormalize(self, data):
+        return self._std * data + self._mean
 
     def _init_params(self, layerdims):
         result = []
@@ -51,6 +60,9 @@ class DCENet:
         tmax = int(delay * horizon)
         smin = -tmin
         smax = series.shape[0] - tmax
+
+        self._mean, self._std = anp.mean(series), anp.sqrt(anp.var(series))
+        series = self._normalize(series)
 
         # TODO: more efficient training procedure
         def objective(params, _):
@@ -77,7 +89,10 @@ class DCENet:
         """
         if self._params is None:
             raise AttributeError("predict() called before fit()")
-        return _dcenet_fwd(self._params, dce, t)[0]
+        normed = self._normalize(dce)
+        pred = _dcenet_fwd(self._params, normed, t)[0]
+        return self._unnormalize(pred)
+        #return _dcenet_fwd(self._params, dce, t)[0]
 
     def save_params(self, filename):
         """
