@@ -1,11 +1,22 @@
 
 import autograd.numpy as anp
+import numpy as np
 from autograd.misc.optimizers import adam
 from autograd import grad
 
 
+def embed_idx(dim, delay, idx):
+    """
+    :param dim: embedding dimension
+    :param delay: number of timesteps in delay
+    :param idx: index of time to embed
+    :return: a numpy array of the embedding indices
+    """
+    return np.array(range(idx - (dim - 1) * delay, idx + 1, delay), dtype=int)
+
+
 def _dcenet_fwd(params, dce, t):
-    inputs = anp.hstack((dce, t))
+    inputs = anp.hstack((dce, anp.atleast_2d(t).T))
     for W, b in zip(params[0::2], params[1::2]):    # weights and biases alternate
         outputs = anp.dot(inputs, W) + b
         inputs = anp.tanh(outputs)
@@ -27,15 +38,6 @@ class DCENet:
             npz = anp.load(loadfile)
             self._params = [npz[file] for file in npz.files]
         self._rng = anp.random.RandomState(seed)
-        self._mean = 0.0
-        self._std = 1.0
-
-    # train on centered data with unit variance
-    def _normalize(self, data):
-        return (data - self._mean) / self._std
-
-    def _unnormalize(self, data):
-        return self._std * data + self._mean
 
     def _init_params(self, layerdims):
         result = []
@@ -44,32 +46,32 @@ class DCENet:
             result.append(self._rng.randn(n))       # bias
         return result
 
-    def fit(self, series, dim, delay, horizon=1, hdims=[64, 64]):
+    def fit(self, series, dim, delay, dt, horizon=None, hdims=[64, 64]):
         """
         Train a neural network to predict a process based on a sampled time series.
 
         :param series: One-dimensional time series of observations, equispaced in time.
         :param dim: Embedding dimension.
         :param delay: Number of observations per embedding delay, must be integral.
-        :param horizon: How far forward in backward to predict in training, in delay lengths. The default is 1.
+        :param dt: Length of time between observations.
+        :param horizon: How far forward and backward to predict in training, in delay lengths. Defaults to one delay.
         :param hdims: Optional, sequence of hidden layer dimensions. Default is [64, 64].
         :return: This DCENet instance, fitted to predict the data process.
         """
+        if horizon is None:
+            horizon = delay * dt
         init_params = self._init_params([dim + 1] + hdims + [1])
-        tmin = int(delay * (1 - dim - horizon))   # query interval bounds
-        tmax = int(delay * horizon)
+        tmin = int(delay * (1 - dim) - horizon / dt + 0.5)   # query interval bounds
+        tmax = int(horizon / dt + 0.5)
         smin = -tmin
         smax = series.shape[0] - tmax
-
-        self._mean, self._std = anp.mean(series), anp.sqrt(anp.var(series))
-        series = self._normalize(series)
 
         # TODO: more efficient training procedure
         def objective(params, _):
             s = self._rng.randint(smin, smax)        # random query point and time
             dce = series[s - (dim - 1) * delay:s + 1:delay]
             t = self._rng.randint(tmin, tmax)
-            pred = _dcenet_fwd(params, dce, t / delay)
+            pred = _dcenet_fwd(params, dce, t / dt)
             true = series[s + t]
             return (pred - true) ** 2
 
@@ -81,18 +83,17 @@ class DCENet:
         self._params = adam(grad(objective), init_params, callback=callback, num_iters=50000)
         return self
 
+    # TODO: warn if time is OOD
     def predict(self, dce, t):
         """
         :param dce: Delay-coord embedding of process at a time s.
-        :param t: Predict embedding feature at time s + t. Time units assumed are the length of a delay!
-        :return: Prediction of feature.
+        :param t: Array of time offsets, to predict embedding feature at s + t.
+        :return: Prediction, or array of predictions, of feature.
         """
         if self._params is None:
             raise AttributeError("predict() called before fit()")
-        normed = self._normalize(dce)
-        pred = _dcenet_fwd(self._params, normed, t)[0]
-        return self._unnormalize(pred)
-        #return _dcenet_fwd(self._params, dce, t)[0]
+        dce = anp.vstack([dce for _ in range(t.shape[0])])
+        return _dcenet_fwd(self._params, dce, t)[:, 0]
 
     def save_params(self, filename):
         """
