@@ -19,13 +19,14 @@ def plot_model(dcenet, dim, delay, dt, s, t, data):
 
 def linear_growth():
     ts = np.arange(500)
-    dcen = DCENet().fit(series=ts, dim=3, delay=2, dt=0.1, hdims=[2], num_iters=20000)
+    dcen = DCENet().fit(series=ts, dim=3, delay=2, dt=0.1, hdims=[2], num_iters=10000)
     dcen.save_params('linparams')
 
 
+# TODO: dump mean, std with save_params!!!!!
 def load_linparams():
     dcen = DCENet(loadfile='linparams.npz')
-    dcen._mean, dcen._std = np.mean(np.arange(500)), np.std(np.arange(500))
+    # dcen._mean, dcen._std = np.mean(np.arange(500)), np.std(np.arange(500))
     print(dcen.predict(np.array([100, 102, 104]), np.arange(-7, 3)))
     plot_model(dcen, 3, 2, 0.1, 222, np.arange(-7, 3), np.arange(500))
 

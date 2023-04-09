@@ -35,12 +35,13 @@ class DCENet:
         :param loadfile: Name of a .npz archive with saved parameters.
         """
         self._params = None
-        if loadfile is not None:
-            npz = anp.load(loadfile)
-            self._params = [npz[file] for file in npz.files]
-        self._rng = anp.random.RandomState(seed)
         self._mean = 0.0
         self._std = 1.0
+        if loadfile is not None:
+            npz = anp.load(loadfile)
+            self._params = [npz[file] for file in npz.files if file != 'arr_0']
+            self._mean, self._std = npz['arr_0']
+        self._rng = anp.random.RandomState(seed)
 
     # train on centered data with unit variance
 
@@ -95,8 +96,8 @@ class DCENet:
             return _loss
 
         def callback(params, iter, _):
-            if iter % 50 == 0:
-                print("Loss at iteration %d =" % iter, _loss)
+            if iter % 100 == 0:
+                print("Loss at iteration %d = %f" % (iter, _loss._value))
 
         self._params = adam(grad(objective), init_params, callback=callback, **kwargs)
         return self
@@ -121,5 +122,6 @@ class DCENet:
         Save parameters to a file.
         :param filename: .npz extension will be appended if not present
         """
-        anp.savez(filename, *self._params)
+        norm = (self._mean, self._std)
+        anp.savez(filename, norm, *self._params)
 
