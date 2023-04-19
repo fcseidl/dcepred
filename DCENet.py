@@ -26,7 +26,7 @@ def _dcenet_fwd(params, dce, t):
 
 class DCENet:
     """
-    A neural network predictor which fits to time series data using delay-coordinate embedding.
+    A neural network predictor which fits to time data data using delay-coordinate embedding.
     """
 
     def __init__(self, seed=0, loadfile=None):
@@ -35,6 +35,7 @@ class DCENet:
         :param loadfile: Name of a .npz archive with saved parameters.
         """
         self._params = None
+        # self._data = None
         self._mean = 0.0
         self._std = 1.0
         if loadfile is not None:
@@ -58,48 +59,65 @@ class DCENet:
             result.append(self._rng.randn(n))       # bias
         return result
 
-    def fit(self, series, dim, delay, dt, horizon=None, hdims=[64, 64], **kwargs):
+    # TODO: make init_params an argument to allow warm-starting
+    def fit(self, data, dim, delay, dt, horizon=None, hdims=[64, 64],
+            print_every=25, batch_size=32, n_epochs=1000, **kwargs):
         """
         Train a neural network to predict a process based on a sampled time series.
 
-        :param series: One-dimensional time series of observations, equispaced in time.
+        :param data: One-dimensional time series of observations, equispaced in time.
         :param dim: Embedding dimension.
         :param delay: Number of observations per embedding delay, must be integral.
         :param dt: Length of time between observations.
         :param horizon: How far forward and backward to predict in training, in delay lengths. Defaults to one delay.
-        :param hdims: Optional, sequence of hidden layer dimensions. Default is [64, 64].
-        :param kwargs: Additional keyword arguments are passed to autograd.misc.optimizes.adam.
+        :param hdims: Sequence of hidden layer dimensions.
+        :param print_every: Training loss prints when epoch is divisible by this value.
+        :param batch_size: Optional, how large of batches to use in training.
+        :param n_epochs: How many epochs to run in training.
+        :param kwargs: Additional keyword arguments are passed to autograd.misc.optimizers.adam.
         :return: This DCENet instance, fitted to predict the data process.
         """
+        # determine lookaheads t for training
         if horizon is None:
             horizon = delay * dt
         init_params = self._init_params([dim + 1] + hdims + [1])
         tmin = int(delay * (1 - dim) - horizon / dt + 0.5)   # query interval bounds
         tmax = int(horizon / dt + 0.5)
-        smin = -tmin
-        smax = series.shape[0] - tmax
+        t_all = anp.arange(tmin, tmax)
+        lookaheads = anp.hstack([t_all for _ in range(batch_size)])
 
-        self._mean, self._std = anp.mean(series), anp.sqrt(anp.var(series))
-        series = self._normalize(series)
+        # determine times s for training
+        smin = -tmin
+        smax = data.shape[0] - tmax
+        s_all = anp.arange(smin, smax)
+        self._rng.shuffle(s_all)
+
+        n_batches = int(anp.ceil((smax - smin) / batch_size))
+
+        # determine and apply normalization
+        self._mean, self._std = anp.mean(data), anp.sqrt(anp.var(data))
+        data = self._normalize(data)
 
         # TODO: more efficient training procedure
-        def objective(params, _):
+        def objective(params, it):
             global _loss
-            offets = embed_offsets(dim, delay)
-            idx = anp.array([i + offets for i in range(smin, smax)])
-            s = idx[:, -1]
-            dce = series[idx]
-            t = self._rng.randint(tmin, tmax, smax - smin)
-            pred = _dcenet_fwd(params, dce, dt * t)[:, 0]
-            err = pred - series[s + t]
+            offsets = embed_offsets(dim, delay)
+            batch = it % n_batches
+            batch_idx = s_all[batch_size * batch:min(batch_size * (batch + 1), smax - smin)]
+            batch_idx = anp.repeat(batch_idx, tmax - tmin)
+            dce = anp.vstack([data[idx + offsets] for idx in batch_idx])
+            times = lookaheads[:batch_idx.shape[0]]
+            pred = _dcenet_fwd(params, dce, dt * times)[:, 0]
+            err = pred - data[batch_idx + times]
             _loss = anp.mean(err * err)
             return _loss
 
-        def callback(params, iter, _):
-            if iter % 100 == 0:
-                print("Loss at iteration %d = %f" % (iter, _loss._value))
+        def callback(params, it, _):
+            # if it % (n_batches * print_every) == 11:
+            #     print("Batch 11 MSE at epoch %d = %f" % (int(it / n_batches), _loss._value))
+            print("epoch %d, batch %d, loss %f" % (int(it / n_batches), it % n_batches, _loss._value))
 
-        self._params = adam(grad(objective), init_params, callback=callback, **kwargs)
+        self._params = adam(grad(objective), init_params, callback=callback, num_iters=n_batches * n_epochs, **kwargs)
         return self
 
     # TODO: warn if time is OOD
