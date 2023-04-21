@@ -32,32 +32,34 @@ def linear_test():
 def sine_train():
     t_train = np.arange(0, 100, 0.01)
     data = np.sin(t_train)
-    net = DCENet().fit(data, dim=2, delay=80, dt=0.01, hdims=[10, 8], n_epochs=100)
+    net = DCENet().fit(data, dim=2, delay=80, dt=0.01, hdims=[10, 8], savefreq=33, savename='sine_epoch_', epochs=100)
     net.save_params('sineparams')
 
 
 def sine_test():
     t_test = np.arange(0, 17, 0.01)
     data = np.sin(t_test)
-    net = DCENet(loadfile='sineparams.npz')
+    net = DCENet(loadfile='sine_epoch_66.npz')
     plot_model(net, 2, 80, 0.01, s=500, t=np.arange(-200, 100), data=data)
 
 
 def lorenz_train():
-    ts_train = np.load('lorenz_train.npy')[5000:, 0]      # load only x coordinate and discard 5s of transient
-    dcen = DCENet().fit(data=ts_train, dim=7, delay=190, dt=0.001, hdims=[20, 10], print_every=1, n_epochs=10, batch_size=50)
+    hdims = [32]
+    print(hdims)
+    ts_train = np.load('lorenz_train.npy')[10000:, 0]      # load only x coordinate and discard 10s of transient
+    dcen = DCENet(edim=7, hdims=hdims).fit(data=ts_train, delay=190, dt=0.001, savefreq=1, savename='lorenz_epoch_', epochs=10, batchsize=60)
     dcen.save_params('lorenz_params')
 
 
 def lorenz_test():
-    ts_test = np.load('lorenz_train.npy')[5000:7000, 0]
-    dcen = DCENet(loadfile='lorenz_params.npz')
-    plot_model(dcen, 7, 190, 0.001, 1500, np.arange(-1500, 150), ts_test)
+    ts_test = np.load('lorenz_test.npy')[20000:22000, 0]
+    dcen = DCENet(loadfile='lorenz_epoch_8.npz')
+    plot_model(dcen, 7, 190, 0.001, 1500, np.arange(-1500, 500), ts_test)
 
 
 # sine_train()
 # sine_test()
 # linear_train()
 # linear_test()
-lorenz_train()
+# lorenz_train()
 lorenz_test()

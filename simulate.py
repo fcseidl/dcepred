@@ -33,8 +33,8 @@ x0_train = np.ones(3)
 x0_test = np.array([46, 22, 50])
 lorenz_train = rk4(lorenz_deriv, x0_train, t0=0, tf=300, dt=0.001)
 lorenz_test = rk4(lorenz_deriv, x0_test, t0=0, tf=300, dt=0.001)
-np.save('lorenz_train', lorenz_train)
-np.save('lorenz_test', lorenz_test)
+np.save('lorenz_train', lorenz_train[:, 0])
+np.save('lorenz_test', lorenz_test[:, 0])
 
 
 
