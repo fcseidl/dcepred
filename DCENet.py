@@ -45,6 +45,7 @@ class DCENet:
             npz = anp.load(loadfile)
             self._params = [npz[file] for file in npz.files if file != 'arr_0']
             self._mean, self._std, self._edim = npz['arr_0']
+            self._edim = int(self._edim)
 
     # train on centered data with unit variance
 
