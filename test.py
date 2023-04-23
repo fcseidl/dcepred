@@ -52,8 +52,8 @@ def lorenz_train():
 
 
 def lorenz_test():
-    ts_test = np.load('lorenz_test.npy')[20000:22000, 0]
-    dcen = DCENet(loadfile='lorenz_epoch_8.npz')
+    ts_test = np.load('lorenz_test.npy')[10000:12000]
+    dcen = DCENet(loadfile='lorenz_epoch_9.npz')
     plot_model(dcen, 7, 190, 0.001, 1500, np.arange(-1500, 500), ts_test)
 
 
