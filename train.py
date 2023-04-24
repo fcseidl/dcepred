@@ -14,7 +14,7 @@ Arguments\n \
 \n \
 Corresponding to DCEnet constructor parameters:\n \
 \n \
---seed/-s, --edim/-m, --hdims/-H, --loadfile/-l\n \
+--seed/-s, --dim/-m, --hdims/-H, --loadfile/-l\n \
 \n \
 Corresponding to DCEnet.fit() parameters other than data:\n \
 \n \
@@ -45,7 +45,7 @@ for n in range(len(sys.argv)):
     elif sys.argv[n] in ('--seed', '-s'):
         seed = int(sys.argv[n + 1])
 
-    elif sys.argv[n] in ('--edim', '-m'):
+    elif sys.argv[n] in ('--dim', '-m'):
         edim = int(sys.argv[n + 1])
 
     elif sys.argv[n] in ('--hdims', '-H'):

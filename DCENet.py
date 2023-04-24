@@ -76,7 +76,7 @@ class DCENet:
         :param batchsize: Optional, how large of batches to use in training.
         :param epochs: How many epochs to run in training.
         :param lookahead: Max time offset for training. Defaults to one delay length.
-        :param lookbehind: Min time offset for training. Defaults to edim delay lengths.
+        :param lookbehind: Max backward offset for training. Defaults to dim delay lengths.
         :param kwargs: Additional keyword arguments are passed to autograd.misc.optimizers.adam.
         :return: This DCENet instance, fitted to predict the data process.
         """
