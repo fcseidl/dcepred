@@ -43,58 +43,56 @@ def embed_offsets(dim, delay):
 
 def create_data(series, dim, delay, times, horizons):
     """
-    Creates training data to predict a time series based on DCE.
+    Creates training data to predict a time x_train based on DCE.
 
     :param series: shape (N,) time series of observations, equispaced in time.
     :param dim: Embedding dimension.
     :param delay: Embedding delay.
-    :param times: Shape (n,) times to use in training.
-    :param horizons: Shape (n,) prediction horizon for each training time.
-    :return: Training data X_train, y_train
+    :param times: Shape (n_samp,) times to use in training.
+    :param horizons: Shape (n_feat,) Prediction horizons defining different features.
+    :return: Training data X_train, Y_train, representing embeddings and lookahead values, resp.
     """
     offsets = embed_offsets(dim, delay)
-    embed_t = np.add.outer(times, offsets)
-    dce = series[embed_t]
-    X = np.hstack([dce, horizons.reshape(-1, 1)])
-    y = series[times + horizons]
-    return X, y
+    embed_idx = np.add.outer(times, offsets)
+    predict_idx = np.add.outer(times, horizons)
+    return series[embed_idx], series[predict_idx]
 
 
 if __name__ == '__main__':
-    series = np.load('lorenz_train.npy')[5000:]
+    # hyperparameter specification
     dim = 7
     delay = 190
-    mino = -delay
+    mino = (1 - dim) * delay
     maxo = 3 * delay
-    times = np.arange(-mino, series.shape[0] - maxo, 7)
-    np.random.shuffle(times)
-    horizons = 293 * np.arange(times.shape[0]) % (maxo - mino) + mino
-    X_train, y_train = create_data(series, dim, delay, times, horizons)
-    norm = np.std(X_train, axis=0)
-    X_train /= norm
-    # krr = KRR(ard(gamma), 0.1).fit(X_train, y_train)
+    scale = 0.005
+    l2reg = 0.1
 
-    from sklearn.kernel_approximation import Nystroem
-    from sklearn.linear_model import SGDRegressor
+    # train model
+    x_train = np.load('lorenz_train.npy')[5000:]
+    t_train = np.arange(-mino, x_train.shape[0] - maxo, 53)
+    np.random.shuffle(t_train)
+    horizons = np.linspace(mino, maxo, 100).astype(int)
+    X_train, Y_train = create_data(x_train, dim, delay, t_train, horizons)
+    # krr = KRR(ard(gamma), 0.1).fit(X_train, Y_train)
 
-    rbf_feature = Nystroem(gamma=0.001)
-    kerprox_train = rbf_feature.fit_transform(X_train)
-    reg = SGDRegressor(loss='epsilon_insensitive').fit(kerprox_train, y_train)
+    # train regressor to each lookahead
+    from sklearn.kernel_ridge import KernelRidge
+    krr = KernelRidge(alpha=l2reg, kernel='rbf', gamma=scale)
+    krr.fit(X_train, Y_train)
 
+    # test on a different trajectory
     import matplotlib.pyplot as plt
-
-    #series = np.load('lorenz_test.npy')
+    x_test = np.load('lorenz_test.npy')
     dt = 0.001
-    t = times[50]
-    h = np.arange(mino - delay, maxo + delay)
-    X_test, y_test = create_data(series, dim, delay, t * np.ones_like(h), h)
-    X_test /= norm
-    kerprox_test = rbf_feature.transform(X_test)
-    y_pred = reg.predict(kerprox_test)
-    plt.plot(dt * (t + h), y_test, color='black', label='true')
-    plt.plot(dt * (t + h), y_pred, color='red', label='predicted')
-    plt.plot([dt * (t + horizons[50]), dt * (t + horizons[50])], [-50, 50])
-    #plt.scatter(dt * (t + off), dce[:, 0], color='blue', label='observed')
+    t_test = np.array([30000])
+    X_test, Y_test = create_data(x_train, dim, delay, t_test, horizons)
+    Y_pred = krr.predict(X_test)
+
+    # plot test results
+    plt.plot(dt * (t_test[0] + horizons), Y_test[0], color='black', label='true')
+    plt.plot(dt * (t_test[0] + horizons), Y_pred[0], color='red', label='predicted')
+    off = embed_offsets(dim, delay)
+    plt.scatter(dt * (t_test[0] + off), X_test[0], color='blue', label='observed')
     plt.xlabel('time')
     plt.ylabel('feature')
     plt.legend()

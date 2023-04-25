@@ -66,9 +66,9 @@ class DCENet:
     def fit(self, data, delay, dt, savefreq=25, savename=None, batchsize=32,
             epochs=1000, lookahead=None, lookbehind=None, **kwargs):
         """
-        Train a neural network to predict a process based on a sampled time series.
+        Train a neural network to predict a process based on a sampled time x_train.
 
-        :param data: One-dimensional time series of observations, equispaced in time.
+        :param data: One-dimensional time x_train of observations, equispaced in time.
         :param delay: Number of observations per embedding delay, must be integral.
         :param dt: Length of time between observations.
         :param savefreq: Training loss prints when epoch is divisible by this value.
@@ -90,7 +90,7 @@ class DCENet:
         t_all = anp.arange(tmin, tmax)
         lookaheads = anp.hstack([t_all for _ in range(batchsize)])
 
-        # determine times s for training
+        # determine t_train s for training
         smin = -tmin
         smax = data.shape[0] - tmax
         s_all = anp.arange(smin, smax)
