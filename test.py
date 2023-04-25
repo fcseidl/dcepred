@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 from DCENet import DCENet, embed_offsets
 
 
-def plot_model(dcenet, dim, delay, dt, s, t, data):
+def plot_model(model, dim, delay, dt, s, t, data):
     offsets = embed_offsets(dim, delay)
     dce = data[s + offsets]
     plt.plot(dt * (s + t), data[s + t], color='black', label='true')
-    plt.plot(dt * (s + t), dcenet.predict(dce, dt * t), color='red', label='predicted')
+    plt.plot(dt * (s + t), model.predict(dce, dt * t), color='red', label='predicted')
     plt.scatter(dt * (s + offsets), dce, color='blue', label='observed')
     plt.xlabel('time')
     plt.ylabel('feature')
