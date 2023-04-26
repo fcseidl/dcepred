@@ -1,5 +1,6 @@
 
 import numpy as np
+from scipy.optimize import approx_fprime
 
 
 def embed_offsets(dim, delay):
@@ -28,5 +29,16 @@ def create_data(series, dim, delay, times, horizons):
     return series[embed_idx], series[predict_idx]
 
 
-def differentiate(model, X):
-    pass
+def differentiate(model, x):
+    """
+    Differentiate an rbf regressor.
+
+    :param model: KernelRidge instance
+    :param x: input value at which to differentiate
+    :return:
+    """
+    pred = lambda z: model.predict(z.reshape(1, -1))[0]
+    jac = approx_fprime(x, pred)
+    return jac
+
+

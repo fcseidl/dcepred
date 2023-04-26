@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.kernel_ridge import KernelRidge
 from joblib import dump, load
 
-from kernel import embed_offsets, create_data
+from kernel import embed_offsets, create_data, differentiate
 
 
 def fit_lorenz_krr(horizons, dim=7, delay=190, sample_freq=103, savefile=None):
@@ -96,34 +96,43 @@ def predicted_attractor_plot():
     plt.show()
 
 
-def powermethod(M, tol=1e-6, maxiter=1000):
-    x = np.ones(M.shape[0])
-    for it in range(maxiter):
-        x /= np.linalg.norm(x)
-        lam = x @ M @ x
-        if np.linalg.norm(M @ x - lam * x) < tol:
-            return lam, x, it
-        x = M @ x
+def plot_dominant_ftles(times, matrices, **kwargs):
+    lams = np.array([np.abs(np.linalg.eigvals(J)).max() for J in matrices])
+    ftles = 1 / times * np.log(lams)
+    plt.plot(times, ftles, **kwargs)
+    plt.xlabel('t')
+    plt.ylabel('FTLE')
 
 
 def ftle_comparison_plot():
     from simulate import variational_lorenz_deriv, rk4
+    dim = 10
+    delay = 100
     dt = 0.001
-    x0_var = np.array([22, 23, 24, 1, 0, 0, 0, 1, 0, 0, 0, 1])
+    t_plot = 5000
+    x0_var = np.array([19, -10, 5, 1, 0, 0, 0, 1, 0, 0, 0, 1])
     traj = rk4(variational_lorenz_deriv, x0_var, t0=0, tf=10, dt=dt)
-    x0_var[:3] = traj[5000, :3]
+    x0_var[:3] = traj[t_plot, :3]
     variational = rk4(variational_lorenz_deriv, x0_var, t0=0, tf=1, dt=dt)
-    deltas = variational[:, 3:].reshape(-1, 3, 3)
-    t_plot = np.arange(0, 500, 10)
-    lams = np.array([np.abs(np.linalg.eigvals(deltas[t])).max() for t in t_plot])
-    plt.plot(dt * t_plot, lams)
-    plt.xlabel('t')
-    plt.ylabel('ftle')
+    deltas_true = variational[:, 3:].reshape(-1, 3, 3)
+    h_plot = np.arange(50, 750, 15)
+    times = dt * h_plot
+    deltas_true = deltas_true[h_plot]
+
+    off = embed_offsets(dim, delay)
+    horizons = np.hstack([h + off for h in h_plot])
+
+    # reg = fit_lorenz_krr(horizons, dim, delay, sample_freq=53, savefile='ftle')
+    reg = load('ftle.joblib')
+
+    dce = traj[t_plot + off, 0]
+    deltas_pred = differentiate(reg, dce)
+    deltas_pred = deltas_pred.reshape(-1, dim, dim)
+
+    plot_dominant_ftles(times, deltas_true, c='black', label='variational matrix')
+    plot_dominant_ftles(times, deltas_pred, c='red', label='regression estimate')
+    plt.legend()
     plt.show()
-
-
-
-
 
 
 # exact_predictor_demo_plot()
