@@ -27,3 +27,6 @@ def create_data(series, dim, delay, times, horizons):
     predict_idx = np.add.outer(times, horizons)
     return series[embed_idx], series[predict_idx]
 
+
+def differentiate(model, X):
+    pass

@@ -45,8 +45,8 @@ def exact_predictor_demo_plot():
     maxo = 3 * delay
     horizons = np.linspace(mino, maxo, 100).astype(int)
 
-    # reg = fit_lorenz_krr(horizons, dim, delay, sample_freq=43, savefile='demo')
-    reg = load('demo.joblib')
+    reg = fit_lorenz_krr(horizons, dim, delay, sample_freq=43, savefile='demo')
+    # reg = load('demo.joblib')
 
     # test on a different trajectory
     x_test = np.load('lorenz_test.npy')
@@ -78,7 +78,7 @@ def predicted_attractor_plot():
 
     # iteratively predict new trajectory
     delay_train = dt * delay
-    # reg = fit_lorenz_krr(horizons=[delay_train - dt], dim=dim, delay=delay_train, savefile='lookahead')
+    reg = fit_lorenz_krr(horizons=[delay_train - dt], dim=dim, delay=delay_train, savefile='lookahead', sample_freq=23)
     reg = load('lookahead.joblib')
     x_pred = x_true[:dim * delay - 2:]
     while x_pred.shape[0] < x_true.shape[0]:
@@ -96,10 +96,36 @@ def predicted_attractor_plot():
     plt.show()
 
 
+def powermethod(M, tol=1e-6, maxiter=1000):
+    x = np.ones(M.shape[0])
+    for it in range(maxiter):
+        x /= np.linalg.norm(x)
+        lam = x @ M @ x
+        if np.linalg.norm(M @ x - lam * x) < tol:
+            return lam, x, it
+        x = M @ x
+
+
 def ftle_comparison_plot():
-    # TODO: plot ftle from variational equation against predicted
-    pass
+    from simulate import variational_lorenz_deriv, rk4
+    dt = 0.001
+    x0_var = np.array([22, 23, 24, 1, 0, 0, 0, 1, 0, 0, 0, 1])
+    traj = rk4(variational_lorenz_deriv, x0_var, t0=0, tf=10, dt=dt)
+    x0_var[:3] = traj[5000, :3]
+    variational = rk4(variational_lorenz_deriv, x0_var, t0=0, tf=1, dt=dt)
+    deltas = variational[:, 3:].reshape(-1, 3, 3)
+    t_plot = np.arange(0, 500, 10)
+    lams = np.array([np.abs(np.linalg.eigvals(deltas[t])).max() for t in t_plot])
+    plt.plot(dt * t_plot, lams)
+    plt.xlabel('t')
+    plt.ylabel('ftle')
+    plt.show()
+
+
+
+
 
 
 # exact_predictor_demo_plot()
-predicted_attractor_plot()
+# predicted_attractor_plot()
+ftle_comparison_plot()
