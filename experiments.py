@@ -10,13 +10,13 @@ from kernel import embed_offsets, create_data
 def fit_lorenz_krr(horizons, dim=7, delay=190, sample_freq=103, savefile=None):
     # training set
     x_train = np.load('lorenz_train.npy')[5000:]
-    t_train = np.arange(-horizons.min(), x_train.shape[0] - horizons.max(), sample_freq)
+    t_train = np.arange(-min(horizons), x_train.shape[0] - max(horizons), sample_freq)
     np.random.shuffle(t_train)
     X_train, Y_train = create_data(x_train, dim, delay, t_train, horizons)
 
     # validation set
     x_test = np.load('lorenz_test.npy')[5000:]
-    t_test = np.arange(-horizons.min(), x_test.shape[0] - horizons.max(), sample_freq)
+    t_test = np.arange(-min(horizons), x_test.shape[0] - max(horizons), sample_freq)
     np.random.shuffle(t_test)
     X_test, Y_test = create_data(x_test, dim, delay, t_test, horizons)
 
@@ -66,9 +66,34 @@ def exact_predictor_demo_plot():
     plt.show()
 
 
+# ok rip it don't work
 def predicted_attractor_plot():
-    # TODO: plot true trajectory and trajectory from iterating predictor
-    pass
+    dim = 7
+    dt = 10
+    delay = 19      # true delay is dt * delay
+
+    # plot true trajectory
+    off = embed_offsets(dim, delay)
+    x_true = np.load('lorenz_test.npy')[5000:6500:dt]
+
+    # iteratively predict new trajectory
+    delay_train = dt * delay
+    # reg = fit_lorenz_krr(horizons=[delay_train - dt], dim=dim, delay=delay_train, savefile='lookahead')
+    reg = load('lookahead.joblib')
+    x_pred = x_true[:dim * delay - 2:]
+    while x_pred.shape[0] < x_true.shape[0]:
+        X = x_pred[x_pred.shape[0] - delay + 2 + off].reshape(1, -1)
+        y = reg.predict(X)
+        x_pred = np.hstack((x_pred, y[0]))
+
+    # plot new trajectory
+    ax = plt.figure().add_subplot(projection='3d')
+    ax.plot(x_true[:(1 - dim) * delay], x_true[3 * delay:(4 - dim) * delay], x_true[(dim - 1) * delay:])
+    ax.plot(x_pred[:(1 - dim) * delay], x_pred[3 * delay:(4 - dim) * delay], x_pred[(dim - 1) * delay:])
+    ax.set_xlabel('x(t)')
+    ax.set_ylabel('x(t - 3 * tau)')
+    ax.set_zlabel('x(t - 6 * tau)')
+    plt.show()
 
 
 def ftle_comparison_plot():
@@ -76,4 +101,5 @@ def ftle_comparison_plot():
     pass
 
 
-exact_predictor_demo_plot()
+# exact_predictor_demo_plot()
+predicted_attractor_plot()

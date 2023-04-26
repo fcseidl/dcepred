@@ -2,36 +2,6 @@
 import numpy as np
 
 
-def rbf(gamma):
-    return lambda x, z: np.exp(-gamma * ((x - z) ** 2).sum(axis=-1))
-
-
-def ard(gamma):
-    return lambda x, z: np.exp(-(x - z) ** 2 @ gamma)
-
-
-class KRR:
-
-    def __init__(self, kernel, l2):
-        self._k = kernel
-        self._l2 = l2
-        self._w = None
-        self._X = None
-
-    def fit(self, X, y):
-        n_samp = X.shape[0]
-        gram = np.array([self._k(X, xi) for xi in X])
-        self._w = np.linalg.solve(gram + self._l2 * np.identity(n_samp), y)
-
-        print('MSE =', ((self._w @ gram - y) ** 2).mean())
-
-        self._X = X
-        return self
-
-    def predict(self, X):
-        return np.array([self._w @ self._k(self._X, xi) for xi in X])
-
-
 def embed_offsets(dim, delay):
     """
     :param dim: embedding dimension
