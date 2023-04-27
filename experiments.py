@@ -135,6 +135,6 @@ def ftle_comparison_plot():
     plt.show()
 
 
-# exact_predictor_demo_plot()
+exact_predictor_demo_plot()
 # predicted_attractor_plot()
-ftle_comparison_plot()
+# ftle_comparison_plot()
